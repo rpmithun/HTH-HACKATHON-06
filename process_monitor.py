@@ -1,46 +1,33 @@
 import psutil
-import logging
 import time
-import os
+import auto_isolation
 
-# 🚀 Set up logging
-LOG_FILE = "ransomware_alerts.log"
-logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s - %(message)s")
+suspicious_processes = ["wannacry.exe", "notpetya.exe", "locky.exe", "ransomware.exe"]
+LOG_FILE = "ransomware_log.txt"
 
-print("🚀 Process Monitor is Running... Watching for ransomware activity.")
+def log_event(message):
+    """Log activity to a file."""
+    with open(LOG_FILE, "a") as log_file:
+        log_file.write(f"{message}\n")
 
-# 🚨 Define suspicious ransomware processes
-suspicious_processes = [
-    "vssadmin.exe",  # Used to delete Windows Shadow Copies
-    "wmic.exe",      # Can delete backups
-    "cipher.exe",    # Can encrypt/wipe files
-    "taskkill.exe",  # Some ransomware kills security software
-    "powershell.exe" # If running suspicious scripts
-]
-
-def detect_ransomware_processes():
-    """Scans running processes and terminates any that match ransomware signatures."""
-    for process in psutil.process_iter(attrs=['pid', 'name']):
+def check_processes():
+    """Check running processes for ransomware activity."""
+    for process in psutil.process_iter(attrs=["pid", "name"]):
         try:
-            process_name = process.info['name'].lower()
-            process_id = process.info['pid']
-
+            process_name = process.info["name"].lower()
             if process_name in suspicious_processes:
-                print(f"🚨 Ransomware process detected: {process_name} (PID: {process_id})")
-                logging.info(f"🚨 Ransomware process detected: {process_name} (PID: {process_id})")
-                
-                # Kill process
-                os.system(f"taskkill /PID {process_id} /F")
-                print(f"✅ Terminated: {process_name} (PID: {process_id})")
-                logging.info(f"✅ Terminated: {process_name} (PID: {process_id})")
+                pid = process.info["pid"]
+                alert_message = f"🚨 Ransomware process detected: {process_name} (PID: {pid})"
+                print(alert_message)
+                log_event(alert_message)
+
+                psutil.Process(pid).terminate()
+                termination_message = f"✅ Terminated: {process_name} (PID: {pid})"
+                print(termination_message)
+                log_event(termination_message)
+
+                auto_isolation.isolate_network()
+                log_event("🚨 Network Isolated due to ransomware detection.")
 
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
-
-# Continuous monitoring loop
-try:
-    while True:
-        detect_ransomware_processes()
-        time.sleep(5)  # Adjust scanning frequency
-except KeyboardInterrupt:
-    print("🛑 Process Monitor Stopped.")
